@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Path to the local video file
-video_path = r'C:\Users\Yukesh\Downloads\snookervideo\11.mp4'
-cap = cv2.VideoCapture(video_path)  # Open the video file
+# Path to the local image
+image_path = r'C:\Users\Yukesh\Downloads\snookervideo\balls.jpg'
+image = cv2.imread(image_path)  # Replace with the path to your local image
 
 # Initial values for threshold
 threshold1 = 30
@@ -43,16 +43,48 @@ def preprocess_image(img):
     imgGray = cv2.cvtColor(imgBlur, cv2.COLOR_BGR2GRAY)
     return imgGray
 
+def is_curve(points, angle_threshold=60):
+    angles = []
+    for i in range(len(points)):
+        p1 = points[i - 1]
+        p2 = points[i]
+        p3 = points[(i + 1) % len(points)]
+
+        v1 = p1 - p2
+        v2 = p3 - p2
+
+        angle = np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+        angle = np.degrees(angle)
+        angles.append(angle)
+
+    # Detecting curves: if the angle is less than the threshold, it's a straight edge; otherwise, it's a curve
+    is_curve = np.array(angles) > angle_threshold
+    return is_curve
+
 def getContours(img, imgContour):
     contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    total_curves = 0  # Initialize the count of curves
+
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if 40000 > area > 500:
+        if 20000 > area > 2000:
             cv2.drawContours(imgContour, cnt, -1, (255, 0, 255), 2)  # Increased thickness to 2
             peri = cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
+
+            approx_points = np.squeeze(approx, axis=1)
+            curve_mask = is_curve(approx_points)
+
             x, y, w, h = cv2.boundingRect(approx)
             cv2.rectangle(imgContour, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Increased thickness to 2
+
+            # Count the number of curves
+            total_curves += np.sum(curve_mask)
+
+            # Draw circles on curve points
+            for i, is_curve_point in enumerate(curve_mask):
+                color = (0, 0, 255) if is_curve_point else (255, 0, 0)
+                cv2.circle(imgContour, tuple(approx_points[i]), 5, color, -1)
 
             # Adjusted position of text to top-right corner of rectangle
             cv2.putText(imgContour, "Points: " + str(len(approx)), (x + w - 60, y + 20), cv2.FONT_HERSHEY_COMPLEX, 0.3,
@@ -60,19 +92,17 @@ def getContours(img, imgContour):
             cv2.putText(imgContour, "Area: " + str(int(area)), (x + w - 60, y + 45), cv2.FONT_HERSHEY_COMPLEX, 0.3,
                         (0, 255, 0), 1)
 
+            # Display the number of curves on the top-right corner
+            cv2.putText(imgContour, "Curves: " + str(total_curves), (x + w - 60, y + 70),
+                        cv2.FONT_HERSHEY_COMPLEX, 0.6,
+                        (0, 255, 255), 1)
+
 def update(val):
     global threshold1, threshold2  # Declare variables as global to update their values
     threshold1 = int(thresh1_slider.val)
     threshold2 = int(thresh2_slider.val)
 
-    # Read frame from the video
-    ret, frame = cap.read()
-
-    if not ret:
-        print("Error: Could not read frame from video.")
-        return
-
-    imgGray = preprocess_image(frame)
+    imgGray = preprocess_image(image)
 
     # Apply Canny edge detection
     imgCanny = cv2.Canny(imgGray, threshold1, threshold2)
@@ -80,14 +110,19 @@ def update(val):
     kernel = np.ones((5, 5))
     imgDil = cv2.dilate(imgCanny, kernel, iterations=1)
 
-    imgContour = frame.copy()
+    imgContour = image.copy()
     getContours(imgDil, imgContour)
-    imgStack = stackImages(3, [[frame, imgGray, imgCanny, imgDil, imgContour]])
+    imgStack = stackImages(3, [[image, imgGray, imgCanny, imgDil, imgContour]])
 
     # Display the image using Matplotlib
     ax.clear()
     ax.imshow(cv2.cvtColor(imgStack, cv2.COLOR_BGR2RGB))
     plt.draw()
+
+# Read the local image
+if image is None:
+    print(f"Error: Could not read image from {image_path}")
+    exit()
 
 # Increase the size of the Matplotlib window
 plt.rcParams['figure.figsize'] = [12, 10]
@@ -112,6 +147,3 @@ update(0)
 
 # Show the plot
 plt.show()
-
-# Release the video capture object
-cap.release()
