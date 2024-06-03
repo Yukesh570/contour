@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Path to the local image
-image_path = r'C:\Users\Yukesh\Downloads\snookervideo\balls.jpg'
+image_path = r'C:\Users\Yukesh\Downloads\snookervideo\custom1red.jpg'
 image = cv2.imread(image_path)  # Replace with the path to your local image
 
 # Initial values for threshold
@@ -39,50 +39,23 @@ def stackImages(scale, imgArray):
     return ver
 
 def preprocess_image(img):
-    imgBlur = cv2.GaussianBlur(img, (3, 3), 5)
+    imgBlur = cv2.GaussianBlur(img, (7, 7), 1)
     imgGray = cv2.cvtColor(imgBlur, cv2.COLOR_BGR2GRAY)
     return imgGray
 
-def is_curve(points, angle_threshold=60):
-    angles = []
-    for i in range(len(points)):
-        p1 = points[i - 1]
-        p2 = points[i]
-        p3 = points[(i + 1) % len(points)]
-
-        v1 = p1 - p2
-        v2 = p3 - p2
-
-        angle = np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-        angle = np.degrees(angle)
-        angles.append(angle)
-
-    # Detecting curves: if the angle is less than the threshold, it's a straight edge; otherwise, it's a curve
-    is_curve = np.array(angles) > angle_threshold
-    return is_curve
 def getContours(img, imgContour):
-    contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    total_curves = 0  # Initialize the count of curves
+    contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if 100000 > area > 100:
-            cv2.drawContours(imgContour, cnt, -1, (255, 0, 255), 2)  # Increased thickness to 2
+        if 50000 > area > 500:
+            cv2.drawContours(imgContour, cnt, -1, (255, 0, 255), 6)  # Increased thickness to 2
             peri = cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
-            approx_points = np.squeeze(approx, axis=1)
 
-            curve_mask = is_curve(approx_points)
 
             x, y, w, h = cv2.boundingRect(approx)
             cv2.rectangle(imgContour, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Increased thickness to 2
-            total_curves += np.sum(curve_mask)
-
-            # Draw circles on curve points
-            for i, is_curve_point in enumerate(curve_mask):
-                color = (0, 0, 255) if is_curve_point else (255, 0, 0)
-                cv2.circle(imgContour, tuple(approx_points[i]), 5, color, -1)
-
 
 
             # Adjusted position of text to top-right corner of rectangle
@@ -90,14 +63,13 @@ def getContours(img, imgContour):
                         (0, 255, 0), 1)
             cv2.putText(imgContour, "Area: " + str(int(area)), (x + w - 60, y + 45), cv2.FONT_HERSHEY_COMPLEX, 0.3,
                         (0, 255, 0), 1)
-            # Display the number of curves on the top-right corner
-            cv2.putText(imgContour, "Curves: " + str(total_curves), (x + w - 60, y + 70),
-                        cv2.FONT_HERSHEY_COMPLEX, 0.6,
-                        (0, 255, 255), 1)
 
-            # Print "ready to start" if the area is greater than 30000 and points equal 3
-            if area > 30000 and len(approx) == 3:
-                print("ready to start")
+
+def outlinecontour(img,imgContour2):
+    contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contour_img = np.zeros_like(imgContour2)
+    cv2.drawContours(contour_img, contours, -1, (0, 255, 0),6)
+    return contour_img
 
 
 def update(val):
@@ -105,9 +77,7 @@ def update(val):
     threshold1 = int(thresh1_slider.val)
     threshold2 = int(thresh2_slider.val)
 
-
     imgGray = preprocess_image(image)
-
 
     # Apply Canny edge detection
     imgCanny = cv2.Canny(imgGray, threshold1, threshold2)
@@ -116,8 +86,22 @@ def update(val):
     imgDil = cv2.dilate(imgCanny, kernel, iterations=1)
 
     imgContour = image.copy()
+    imgContour2=image.copy()
     getContours(imgDil, imgContour)
-    imgStack = stackImages(3, [[image,imgGray,imgCanny, imgDil, imgContour]])
+    outline=outlinecontour(imgDil,imgContour2)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Find contours in the grayscale image
+    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #
+    # # Create a blank image of the same size as the original image
+    # contour_img = np.zeros_like(image)
+    #
+    # # Draw contours on the blank image
+    # cv2.drawContours(contour_img, contours, -1, (0, 255, 0),
+    #                  6)  # Change thickness to 1 if you just want the outline
+
+    imgStack = stackImages(2, [[image, imgGray, imgCanny, imgDil, imgContour,outline]])
 
     # Display the image using Matplotlib
     ax.clear()

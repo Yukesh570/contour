@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Path to the local image
-image_path = r'C:\Users\Yukesh\Downloads\snookervideo\balls.jpg'
+image_path = r'C:\Users\Yukesh\Downloads\snookervideo\custom1.jpg'
 image = cv2.imread(image_path)  # Replace with the path to your local image
 
 # Initial values for threshold
