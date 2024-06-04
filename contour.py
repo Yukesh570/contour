@@ -10,6 +10,10 @@ image = cv2.imread(image_path)  # Replace with the path to your local image
 threshold1 = 30
 threshold2 = 30
 
+# Define the lower and upper bounds for white color in HSV space
+lower_white = np.array([0, 0, 200])
+upper_white = np.array([180, 25, 255])
+
 def stackImages(scale, imgArray):
     rows = len(imgArray)
     cols = len(imgArray[0])
@@ -64,13 +68,25 @@ def getContours(img, imgContour):
             cv2.putText(imgContour, "Area: " + str(int(area)), (x + w - 60, y + 45), cv2.FONT_HERSHEY_COMPLEX, 0.3,
                         (0, 255, 0), 1)
 
-
-def outlinecontour(img,imgContour2):
+def outlinecontour(img, imgContour2):
     contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contour_img = np.zeros_like(imgContour2)
-    cv2.drawContours(contour_img, contours, -1, (0, 255, 0),6)
-    return contour_img
+    cv2.drawContours(contour_img, contours, -1, (0, 255, 0), 6)
+    return contours, contour_img
 
+# Function to detect white objects
+def detectWhiteObjects(img):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, lower_white, upper_white)
+    return mask
+
+# Function to check if a white object touches any contour
+def checkIntersection(contours, mask):
+    for cnt in contours:
+        for point in cnt:
+            if mask[point[0][1], point[0][0]] == 255:
+                return True
+    return False
 
 def update(val):
     global threshold1, threshold2  # Declare variables as global to update their values
@@ -86,22 +102,18 @@ def update(val):
     imgDil = cv2.dilate(imgCanny, kernel, iterations=1)
 
     imgContour = image.copy()
-    imgContour2=image.copy()
+    imgContour2 = image.copy()
     getContours(imgDil, imgContour)
-    outline=outlinecontour(imgDil,imgContour2)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    contours, outline = outlinecontour(imgDil, imgContour2)
 
-    # Find contours in the grayscale image
-    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #
-    # # Create a blank image of the same size as the original image
-    # contour_img = np.zeros_like(image)
-    #
-    # # Draw contours on the blank image
-    # cv2.drawContours(contour_img, contours, -1, (0, 255, 0),
-    #                  6)  # Change thickness to 1 if you just want the outline
+    # Detect white objects in the image
+    white_objects_mask = detectWhiteObjects(image)
 
-    imgStack = stackImages(2, [[image, imgGray, imgCanny, imgDil, imgContour,outline]])
+    # Check if any white object touches any contour
+    if checkIntersection(contours, white_objects_mask):
+        print("Game start")
+
+    imgStack = stackImages(2, [[image, imgGray, imgCanny, imgDil, imgContour, outline]])
 
     # Display the image using Matplotlib
     ax.clear()

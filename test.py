@@ -1,99 +1,90 @@
 import cv2
 import numpy as np
-import itertools
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 
-def detect_largest_triangle(image_path, min_triangle_area=1000):
-    # Load the image
-    image = cv2.imread("ball4.jpg")
+# Function to detect white objects
+def detectWhiteObjects(img):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 25, 255])
+    mask = cv2.inRange(hsv, lower_white, upper_white)
+    return mask
 
-    # Convert the image to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+# Function to check if a white object touches any contour
+def checkIntersection(contours, mask):
+    for cnt in contours:
+        for point in cnt:
+            if mask[point[0][1], point[0][0]] == 255:
+                return True
+    return False
 
-    # Function to update the detected circles based on the slider values
-    def update_circles(val):
-        min_dist = int(slider_min_dist.val)
-        param1_val = int(slider_param1.val)
-        param2_val = int(slider_param2.val)
-        min_radius = int(slider_min_radius.val)
-        max_radius = int(slider_max_radius.val)
+# Read the video
+video_path = r'C:\Users\Yukesh\Downloads\snookervideo\aja2.mp4'  # Replace with your video file path
+cap = cv2.VideoCapture(video_path)
 
-        # Apply Hough Circle Transform to detect circles
-        circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1, minDist=min_dist, param1=param1_val, param2=param2_val,
-                                   minRadius=min_radius, maxRadius=max_radius)
+if not cap.isOpened():
+    print("Error: Could not open the video file.")
+    exit()
 
-        # If circles are detected
-        if circles is not None:
-            circles = np.uint16(np.around(circles))
-            centers = circles[0, :, :2]
+# Define the lower and upper bounds for red color in HSV space
+lower_red1 = np.array([0, 50, 50])
+upper_red1 = np.array([10, 255, 255])
+lower_red2 = np.array([160, 50, 50])
+upper_red2 = np.array([180, 255, 255])
 
-            # Initialize variables to store the largest triangle found
-            max_area = 0
-            max_triangle = None
+# Skip frames
+skip_frames = 5
+frame_count = 0
 
-            # Generate combinations of circle centers to form triangles
-            combinations = list(itertools.combinations(centers, 3))
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-            # Check if each combination forms a triangle
-            for combination in combinations:
-                # Calculate area of the triangle using cross product
-                area = 0.5 * abs(np.cross(combination[1] - combination[0], combination[2] - combination[0]))
+    # Skip frames
+    frame_count += 1
+    if frame_count % skip_frames != 0:
+        continue
 
-                # Update the largest triangle if the current triangle has a greater area
-                if area > max_area and area > min_triangle_area:
-                    max_area = area
-                    max_triangle = combination
+    # Convert the frame to HSV color space
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-            # If a triangle with a valid area is found, draw it on the image
-            if max_triangle is not None:
-                cv2.line(image, tuple(max_triangle[0]), tuple(max_triangle[1]), (0, 255, 0), 2)
-                cv2.line(image, tuple(max_triangle[1]), tuple(max_triangle[2]), (0, 255, 0), 2)
-                cv2.line(image, tuple(max_triangle[2]), tuple(max_triangle[0]), (0, 255, 0), 2)
+    # Create masks to detect red regions
+    mask1 = cv2.inRange(hsv_frame, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv_frame, lower_red2, upper_red2)
+    red_mask = cv2.bitwise_or(mask1, mask2)
 
-        # Convert BGR to RGB for displaying with matplotlib
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # Apply morphological operations to reduce noise
+    kernel = np.ones((5, 5), np.uint8)
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
 
-        # Display the image
-        ax.imshow(image_rgb)
-        plt.axis('off')
-        plt.show()
+    # Apply Gaussian blur to further reduce noise
+    red_mask_blurred = cv2.GaussianBlur(red_mask, (9, 9), 2)
 
-    # Create sliders for parameter adjustment
-    fig, ax = plt.subplots()
-    plt.subplots_adjust(left=0.25, bottom=0.45)
-    ax.imshow(gray, cmap='gray')
+    # Find contours of the red regions
+    contours, _ = cv2.findContours(red_mask_blurred, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Slider for minDist
-    ax_min_dist = plt.axes([0.25, 0.1, 0.65, 0.03])
-    slider_min_dist = Slider(ax_min_dist, 'minDist', 0, 200, valinit=40, valstep=1)
+    # Draw smooth contours around the red regions
+    frame_contour = frame.copy()
+    for contour in contours:
+        epsilon = 0.02 * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        cv2.drawContours(frame_contour, [approx], -1, (0, 0, 255), 2)
 
-    # Slider for param1
-    ax_param1 = plt.axes([0.25, 0.15, 0.65, 0.03])
-    slider_param1 = Slider(ax_param1, 'param1', 0, 200, valinit=70, valstep=1)
+    # Detect white objects in the frame
+    white_objects_mask = detectWhiteObjects(frame)
 
-    # Slider for param2
-    ax_param2 = plt.axes([0.25, 0.2, 0.65, 0.03])
-    slider_param2 = Slider(ax_param2, 'param2', 0, 200, valinit=60, valstep=1)
+    # Check if any white object touches any contour
+    if checkIntersection(contours, white_objects_mask):
+        print("Game started")
 
-    # Slider for minRadius
-    ax_min_radius = plt.axes([0.25, 0.25, 0.65, 0.03])
-    slider_min_radius = Slider(ax_min_radius, 'minRadius', 0, 100, valinit=10, valstep=1)
+    # Display the frame with red contours using cv2.imshow
+    cv2.imshow('Frame', frame_contour)
 
-    # Slider for maxRadius
-    ax_max_radius = plt.axes([0.25, 0.3, 0.65, 0.03])
-    slider_max_radius = Slider(ax_max_radius, 'maxRadius', 0, 200, valinit=60, valstep=1)
+    # Press 'q' to exit the loop
+    if cv2.waitKey(25) & 0xFF == ord('q'):
+        break
 
-    # Attach update function to sliders
-    slider_min_dist.on_changed(update_circles)
-    slider_param1.on_changed(update_circles)
-    slider_param2.on_changed(update_circles)
-    slider_min_radius.on_changed(update_circles)
-    slider_max_radius.on_changed(update_circles)
-
-    plt.show()
-
-
-# Example usage:
-image_path = 'ball4.jpg'  # Replace 'ball4.jpg' with the path to your image
-detect_largest_triangle(image_path)
+# Release the video capture object and close all windows
+cap.release()
+cv2.destroyAllWindows()
