@@ -53,7 +53,7 @@ def update_threshold2(value):
     threshold2 = value
 
 # Read the video
-video_path = r'C:\Users\Yukesh\Downloads\snookervideo\aja3.mp4'  # Replace with your video file path
+video_path = r'C:\Users\Yukesh\Downloads\snookervideo\viber9.mp4'  # Replace with your video file path
 cap = cv2.VideoCapture(video_path)
 
 if not cap.isOpened():

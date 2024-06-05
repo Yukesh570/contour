@@ -1,11 +1,16 @@
 import cv2
 import numpy as np
 
-cap = cv2.VideoCapture(r'C:\Users\Yukesh\Downloads\snookervideo\viber8.mp4')
+video_path = r'C:\Users\Yukesh\Downloads\snookervideo\wed3.mp4'  # Replace with your video file path
+cap = cv2.VideoCapture(video_path)
+
 # Define the lower and upper bounds for red color in HSV space
-lower_red1 = np.array([0, 100, 100])
+
+
+
+lower_red1 = np.array([0, 180, 40])
 upper_red1 = np.array([10, 255, 255])
-lower_red2 = np.array([160, 100, 100])
+lower_red2 = np.array([160, 180, 40])
 upper_red2 = np.array([180, 255, 255])
 
 
@@ -57,8 +62,8 @@ skip_frames = 5
 frame_count = 0
 
 while cap.isOpened():
-    success, frame = cap.read()
-    if not success:
+    ret, frame = cap.read()
+    if not ret:
         break
 
     # Skip frames
@@ -98,8 +103,8 @@ while cap.isOpened():
         # cv2.imshow('median video',median_blur_white)
         # if checkIntersection(contours, median_blur_white):
         #     cv2.putText(frame, "PLAY", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        if contour_touching(frame, frame_copy):
-            cv2.putText(frame, "PLAY", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # if contour_touching(frame, frame_copy):
+        #     cv2.putText(frame, "PLAY", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         cv2.imshow('Input', frame)
         # cv2.imshow('blur', imgGray)
         # cv2.imshow('binary video',canny2)
